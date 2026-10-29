@@ -534,4 +534,75 @@ def admin_give_all():
         flash('Ошибка: неверный формат суммы.', 'error')
         return redirect(url_for('admin'))
         
-    comment =
+    comment = request.form.get('comment')
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    
+    for name, data in DB['users'].items():
+        if data['role'] != 'admin':
+            if amount > 0:
+                data['coins'] += amount
+                data['earned'] += amount
+            else:
+                data['coins'] += amount
+                data['spent'] += abs(amount)
+            
+            DB['history'].append({"user": name, "amount": amount, "comment": comment, "date": now})
+            
+    flash(f'Всем начислено по {amount}!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/create_event', methods=['POST'])
+def admin_create_event():
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    
+    new_id = 1
+    if DB['events']:
+        new_id = max(e['id'] for e in DB['events']) + 1
+        
+    DB['events'].append({
+        "id": new_id,
+        "name": request.form['name'],
+        "date": request.form['date'],
+        "info": request.form['info']
+    })
+    flash('Эвент создан!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/reply_request/<int:req_idx>', methods=['POST'])
+def admin_reply_request(req_idx):
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    reply = request.form.get('reply')
+    if reply and req_idx < len(DB['requests']):
+        DB['requests'][req_idx]['reply'] = reply
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_request/<int:req_idx>', methods=['POST'])
+def admin_delete_request(req_idx):
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    if req_idx < len(DB['requests']):
+        DB['requests'].pop(req_idx)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_user/<name>', methods=['POST'])
+def admin_delete_user(name):
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    if name in DB['users'] and DB['users'][name]['role'] != 'admin':
+        del DB['users'][name]
+        # Очищаем мусор
+        DB['history'] = [h for h in DB['history'] if h['user'] != name]
+        DB['responses'] = [r for r in DB['responses'] if r['user'] != name]
+        DB['requests'] = [r for r in DB['requests'] if r['user'] != name]
+        flash('Пользователь удален.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_event/<int:event_id>', methods=['POST'])
+def admin_delete_event(event_id):
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    DB['events'] = [e for e in DB['events'] if e['id'] != event_id]
+    DB['responses'] = [r for r in DB['responses'] if r['event_id'] != event_id]
+    flash('Эвент удален.', 'success')
+    return redirect(url_for('admin'))
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
