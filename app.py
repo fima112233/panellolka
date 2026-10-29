@@ -399,7 +399,7 @@ ADMIN_HTML = """
         {% endfor %}
     </table>
 
-    <!-- ТУТ САМОЕ ВАЖНОЕ: СПИСКИ УЧАСТНИКОВ НА ЭВЕНТЫ -->
+    <!-- СПИСКИ УЧАСТНИКОВ -->
     <h3 style="margin-top: 30px;">🎉 Управление эвентами и списки участников</h3>
     {% for e in events %}
     <div class="card" style="border-left-color: var(--secondary); margin-bottom: 15px;">
@@ -540,38 +540,54 @@ def send_request():
 def admin():
     if session.get('role') != 'admin': return redirect(url_for('login'))
     db = get_db()
-    users = db.execute('SELECT * FROM users').fetchall()
+    
+    users_raw = db.execute('SELECT * FROM users').fetchall()
+    users = [dict(u) for u in users_raw]
+    
+    # Получаем обычных юзеров для блока "Не ответили"
+    normal_users = [u for u in users if u['role'] != 'admin']
     
     events_raw = db.execute('SELECT * FROM events ORDER BY id DESC').fetchall()
     events = []
     
-    # Собираем полные списки для каждого эвента
     for e in events_raw:
         ev_dict = dict(e)
         
-        # Кто придет
-        accepted = db.execute('SELECT u.name FROM participants p JOIN users u ON p.user_id = u.id WHERE p.event_id = ? AND p.status = "accepted"', (e['id'],)).fetchall()
+        # Получаем всех, кто ответил на этот эвент
+        parts = db.execute('''SELECT p.status, p.reason, u.name 
+                              FROM participants p 
+                              JOIN users u ON p.user_id = u.id 
+                              WHERE p.event_id = ?''', (e['id'],)).fetchall()
+        
+        accepted = []
+        declined = []
+        responded_names = []
+        
+        # Разделяем на согласившихся и отказавшихся
+        for p in parts:
+            responded_names.append(p['name'])
+            if p['status'] == 'accepted':
+                accepted.append({'name': p['name']})
+            elif p['status'] == 'declined':
+                declined.append({'name': p['name'], 'reason': p['reason']})
+        
+        # Вычисляем тех, кто не ответил (все юзеры минус ответившие)
+        pending = []
+        for u in normal_users:
+            if u['name'] not in responded_names:
+                pending.append({'name': u['name']})
+                
         ev_dict['accepted_list'] = accepted
-        
-        # Кто отказался
-        declined = db.execute('SELECT u.name, p.reason FROM participants p JOIN users u ON p.user_id = u.id WHERE p.event_id = ? AND p.status = "declined"', (e['id'],)).fetchall()
         ev_dict['declined_list'] = declined
-        
-        # Кто не ответил (все юзеры минус те, кто ответил)
-        responded_ids = db.execute('SELECT user_id FROM participants WHERE event_id = ?', (e['id'],)).fetchall()
-        resp_ids = [r['user_id'] for r in responded_ids]
-        
-        if resp_ids:
-            placeholders = ','.join('?' * len(resp_ids))
-            pending = db.execute(f'SELECT name FROM users WHERE role != "admin" AND id NOT IN ({placeholders})', resp_ids).fetchall()
-        else:
-            pending = db.execute('SELECT name FROM users WHERE role != "admin"').fetchall()
         ev_dict['pending_list'] = pending
         
         events.append(ev_dict)
 
-    requests = db.execute('SELECT r.*, u.name FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.id DESC').fetchall()
-    global_history = db.execute('SELECT h.*, u.name FROM history h JOIN users u ON h.user_id = u.id ORDER BY h.id DESC LIMIT 50').fetchall()
+    requests_raw = db.execute('SELECT r.*, u.name FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.id DESC').fetchall()
+    requests = [dict(r) for r in requests_raw]
+    
+    global_history_raw = db.execute('SELECT h.*, u.name FROM history h JOIN users u ON h.user_id = u.id ORDER BY h.id DESC LIMIT 50').fetchall()
+    global_history = [dict(h) for h in global_history_raw]
     
     return render_template_string(ADMIN_HTML, users=users, requests=requests, events=events, global_history=global_history)
 
