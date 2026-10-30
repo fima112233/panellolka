@@ -57,7 +57,6 @@ BASE_STYLE = """
         button.warn { background: linear-gradient(135deg, #f1c40f 0%, #f39c12 100%); color: #fff; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
         button.blue { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
         
-        /* Стили для Кликера */
         .clicker-btn { background: radial-gradient(circle, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); color: #c0392b; font-size: 24px; font-weight: 900; border-radius: 50%; width: 150px; height: 150px; margin: 0 auto; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 25px rgba(255, 107, 129, 0.5); transition: transform 0.1s; border: 4px solid #fff; }
         .clicker-btn:active { transform: scale(0.95); }
         .clicker-btn:hover { filter: brightness(1.05); }
@@ -101,25 +100,19 @@ BASE_STYLE = """
             setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
         }
 
-        // ЛОГИКА КЛИКЕРА (Кулдаун 0.2 сек, награда 0.5)
         let lastClickTime = 0;
         function doClick() {
             const now = Date.now();
-            if (now - lastClickTime < 200) {
-                return; // Защита от спама на клиенте
-            }
+            if (now - lastClickTime < 200) return; 
             lastClickTime = now;
-
-            fetch('/api/click', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        const coinEl = document.getElementById('coin-display');
-                        if (coinEl) coinEl.innerText = data.new_balance.toFixed(2);
-                    } else {
-                        showToast(data.message, "error");
-                    }
-                });
+            fetch('/api/click', { method: 'POST' }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    const coinEl = document.getElementById('coin-display');
+                    if (coinEl) coinEl.innerText = data.new_balance.toFixed(2);
+                } else {
+                    showToast(data.message, "error");
+                }
+            });
         }
     </script>
 """
@@ -131,7 +124,6 @@ def get_layout(content):
         <button id="themeBtn" class="theme-toggle" onclick="toggleTheme()">🌙</button>
         {content}
     </body></html>"""
-
 LOGIN_CONTENT = """
 <div class="container" style="max-width: 400px; margin-top: 10vh;">
     <div style="text-align: center; margin-bottom: 30px;"><h1 style="color: var(--primary); font-size: 32px;">Roblox Events</h1></div>
@@ -177,7 +169,6 @@ USER_CONTENT = """
     
     <div class="flex" style="align-items: flex-start;">
         <div style="flex: 2;">
-            <!-- КЛИКЕР -->
             <h3>🖱️ Кликер (0.5 коина за клик)</h3>
             <div class="card" style="text-align: center; border-left-color: var(--accent);">
                 <div class="clicker-btn" onclick="doClick()">ТАП!</div>
@@ -284,7 +275,6 @@ USER_CONTENT = """
     {% endwith %}
 </script>
 """
-
 ADMIN_LAYOUT = """
 <div class="container" style="max-width: 1200px;">
     <div class="flex" style="justify-content: space-between; background: var(--input-bg); padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 2px solid var(--accent);">
@@ -339,6 +329,16 @@ ADMIN_LAYOUT = """
 
     {% if active_tab == 'users' %}
     <h3>Управление пользователями</h3>
+    
+    <div class="card" style="border-left-color: var(--blue); margin-bottom: 15px;">
+        <h4>📁 Загрузить базу (users.satpanel)</h4>
+        <form method="POST" action="/admin/upload_users" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".satpanel" required style="padding: 10px; border: none; background: transparent; margin: 0 0 10px 0;">
+            <button type="submit" class="blue" style="font-size: 12px;">Загрузить и создать юзеров</button>
+        </form>
+        <p style="font-size: 12px; color: gray; margin-top: 5px;">Синтаксис файла: Ник (строка 1), Пароль (строка 2), Ник (строка 3), Пароль (строка 4) и т.д.</p>
+    </div>
+
     <input type="text" id="searchUser" onkeyup="filterUsers()" placeholder="Поиск по нику..." style="max-width: 300px; margin-bottom: 10px;">
     <table id="usersTable">
         <tr><th>Имя</th><th>Баланс</th><th>Уровень</th><th>Действия</th></tr>
@@ -380,18 +380,46 @@ ADMIN_LAYOUT = """
         </form>
     </div>
     
-    <h3>Активные эвенты</h3>
+    <h3>Управление эвентами и списки</h3>
     {% for e in events %}
-        {% if e.status != 'finished' %}
-        <div class="card" style="border-left-color: var(--secondary);">
-            <h4 style="margin:0;">{{ e['name'] }}</h4>
-            <p style="margin:5px 0; color:var(--primary); font-weight: 700;">🕒 {{ e['date'] }}</p>
-            <p>{{ e['info'] }}</p>
-            <form method="POST" action="/admin/finish_event/{{ e['id'] }}" style="margin-top: 10px;">
-                <button class="blue" type="submit">🏁 Завершить эвент</button>
-            </form>
+        <div class="card" style="border-left-color: var(--secondary); margin-bottom: 20px;">
+            <div class="flex" style="justify-content: space-between;">
+                <div>
+                    <h4 style="margin:0;">{{ e['name'] }}</h4>
+                    <p style="margin:5px 0; color:var(--primary); font-weight: 700;">🕒 {{ e['date'] }}</p>
+                    <p style="margin:0;">{{ e['info'] }}</p>
+                </div>
+                {% if e.status != 'finished' %}
+                <form method="POST" action="/admin/finish_event/{{ e['id'] }}" style="margin-top: 10px; flex: none;">
+                    <button class="blue" type="submit" style="width: auto; padding: 8px 15px;">🏁 Завершить</button>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if e.status != 'finished' %}
+            <div class="flex" style="align-items: flex-start; gap: 15px; margin-top: 15px;">
+                <div style="flex: 1; background: rgba(46, 213, 115, 0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(46, 213, 115, 0.3);">
+                    <h5 style="margin: 0 0 5px 0; color: var(--success);">✅ Придут ({{ e['accepted_list']|length }})</h5>
+                    <ul style="margin: 0; padding-left: 20px; font-weight: 600; font-size: 14px;">
+                        {% for p in e['accepted_list'] %}<li>{{ p }}</li>{% else %}<li style="color: gray;">Пока никто</li>{% endfor %}
+                    </ul>
+                </div>
+                <div style="flex: 1; background: rgba(255, 71, 87, 0.05); padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 71, 87, 0.3);">
+                    <h5 style="margin: 0 0 5px 0; color: var(--danger);">❌ Отказались ({{ e['declined_list']|length }})</h5>
+                    <ul style="margin: 0; padding-left: 20px; font-weight: 600; font-size: 14px;">
+                        {% for p in e['declined_list'] %}<li>{{ p['name'] }} <span style="font-size: 12px; color: gray; font-weight: 400;">({{ p['reason'] }})</span></li>{% else %}<li style="color: gray;">Пока никто</li>{% endfor %}
+                    </ul>
+                </div>
+                
+                <div style="flex: 1; background: rgba(0, 0, 0, 0.03); padding: 10px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, 0.1);">
+                    <h5 style="margin: 0 0 5px 0; color: gray;">⏳ Не ответили ({{ e['pending_list']|length }})</h5>
+                    <ul style="margin: 0; padding-left: 20px; font-weight: 600; font-size: 14px; color: gray;">
+                        {% for p in e['pending_list'] %}<li>{{ p }}</li>{% else %}<li style="color: gray;">Все ответили</li>{% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
     {% endfor %}
     {% endif %}
 
@@ -441,7 +469,6 @@ ADMIN_LAYOUT = """
         </div>
     </div>
     {% endif %}
-
 </div>
 <script>
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -451,8 +478,6 @@ ADMIN_LAYOUT = """
     {% endwith %}
 </script>
 """
-
-# --- МАРШРУТЫ ---
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -471,20 +496,16 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# API ДЛЯ КЛИКЕРА (Кулдаун 0.2 сек)
 @app.route('/api/click', methods=['POST'])
 def api_click():
     if 'user' not in session: return jsonify({"success": False, "message": "Не авторизован"})
     user_name = session['user']
     now = time.time()
-    
     if now - DB['users'][user_name].get('last_click', 0) < 0.2:
         return jsonify({"success": False, "message": "Слишком быстро! Не спамь."})
-        
     DB['users'][user_name]['last_click'] = now
     DB['users'][user_name]['coins'] += 0.5
     DB['users'][user_name]['earned'] += 0.5
-    
     return jsonify({"success": True, "new_balance": DB['users'][user_name]['coins']})
 
 @app.route('/dismiss_inflation', methods=['POST'])
@@ -538,14 +559,9 @@ def order_custom_role():
     if 'user' not in session: return redirect(url_for('login'))
     new_id = max([r['id'] for r in DB['custom_requests']], default=0) + 1
     DB['custom_requests'].append({
-        "id": new_id,
-        "user": session['user'],
-        "role_name": request.form.get('role_name'),
-        "color": request.form.get('role_color'),
-        "duration": request.form.get('role_duration'),
-        "role_perms": request.form.get('role_perms'),
-        "status": "pending",
-        "price": 0,
+        "id": new_id, "user": session['user'], "role_name": request.form.get('role_name'),
+        "color": request.form.get('role_color'), "duration": request.form.get('role_duration'),
+        "role_perms": request.form.get('role_perms'), "status": "pending", "price": 0,
         "date": datetime.now().strftime("%d.%m %H:%M")
     })
     flash('Заказ на роль отправлен админу! Ждите оценки.', 'success')
@@ -572,7 +588,6 @@ def respond_custom(req_id):
         elif action == 'decline':
             req['status'] = 'declined'
             flash('Вы отказались от покупки.', 'success')
-            
     return redirect(url_for('profile'))
 
 @app.route('/buy_shop_item/<int:item_id>', methods=['POST'])
@@ -580,13 +595,9 @@ def buy_shop_item(item_id):
     if 'user' not in session: return redirect(url_for('login'))
     user_name = session['user']
     item = next((i for i in DB['shop'] if i['id'] == item_id), None)
-    
     if item:
         if DB['users'][user_name]['coins'] >= item['price']:
-            DB['role_requests'].append({
-                "user": user_name, "item_name": item['name'], "price": item['price'],
-                "date": datetime.now().strftime("%d.%m %H:%M")
-            })
+            DB['role_requests'].append({"user": user_name, "item_name": item['name'], "price": item['price'], "date": datetime.now().strftime("%d.%m %H:%M")})
             flash('Запрос на покупку отправлен!', 'success')
         else:
             flash('Недостаточно коинов!', 'error')
@@ -597,20 +608,33 @@ def event_respond(event_id, action):
     if 'user' not in session or session.get('role') == 'admin': return redirect(url_for('login'))
     user_name = session['user']
     DB['responses'] = [r for r in DB['responses'] if not (r['event_id'] == event_id and r['user'] == user_name)]
-    
     if action == 'accept':
         DB['responses'].append({"event_id": event_id, "user": user_name, "status": "accepted", "reason": ""})
     elif action == 'decline':
         DB['responses'].append({"event_id": event_id, "user": user_name, "status": "declined", "reason": request.form.get('reason', 'Без причины')})
     return redirect(url_for('profile'))
 
-# --- АДМИНКА ---
 @app.route('/admin')
 def admin():
     if session.get('role') != 'admin': return redirect(url_for('login'))
     active_tab = request.args.get('tab', 'main')
+    
+    events_view = []
+    for e in DB['events']:
+        ev_dict = dict(e)
+        parts = [p for p in DB['responses'] if p['event_id'] == e['id']]
+        
+        ev_dict['accepted_list'] = [p['user'] for p in parts if p['status'] == 'accepted']
+        ev_dict['declined_list'] = [{"name": p['user'], "reason": p['reason']} for p in parts if p['status'] == 'declined']
+        
+        responded_names = [p['user'] for p in parts]
+        all_users = [name for name, data in DB['users'].items() if data['role'] != 'admin']
+        ev_dict['pending_list'] = [name for name in all_users if name not in responded_names]
+        
+        events_view.append(ev_dict)
+    
     return get_layout(render_template_string(ADMIN_LAYOUT, 
-        users=DB['users'], events=DB['events'], 
+        users=DB['users'], events=events_view, 
         role_requests=DB['role_requests'], custom_requests=DB['custom_requests'],
         active_tab=active_tab))
 
@@ -625,13 +649,29 @@ def admin_create_user():
         flash(f'Профиль {name} создан!', 'success')
     return redirect(url_for('admin', tab='main'))
 
+@app.route('/admin/upload_users', methods=['POST'])
+def admin_upload_users():
+    if session.get('role') != 'admin': return redirect(url_for('login'))
+    file = request.files.get('file')
+    if file:
+        content = file.read().decode('utf-8').splitlines()
+        count = 0
+        for i in range(0, len(content), 2):
+            if i + 1 < len(content):
+                name = content[i].strip()
+                pwd = content[i+1].strip()
+                if name and pwd and name not in DB['users']:
+                    DB['users'][name] = {"password": pwd, "role": "user", "coins": 0, "earned": 0, "spent": 0, "banned": False, "inflation_msg": "", "last_click": 0}
+                    count += 1
+        flash(f'Успешно загружено {count} пользователей!', 'success')
+    return redirect(url_for('admin', tab='users'))
+
 @app.route('/admin/give_coins', methods=['POST'])
 def admin_give_coins():
     if session.get('role') != 'admin': return redirect(url_for('login'))
     user_name = request.form.get('user_name')
     amount = float(request.form.get('amount'))
     comment = request.form.get('comment')
-    
     if user_name in DB['users']:
         if amount > 0:
             DB['users'][user_name]['coins'] += amount
@@ -648,7 +688,6 @@ def admin_process_custom(req_id):
     if session.get('role') != 'admin': return redirect(url_for('login'))
     action = request.form.get('action')
     req = next((r for r in DB['custom_requests'] if r['id'] == req_id), None)
-    
     if req and req['status'] == 'pending':
         if action == 'offer':
             price = int(float(request.form.get('final_price', 0)))
@@ -658,7 +697,6 @@ def admin_process_custom(req_id):
         elif action == 'reject':
             req['status'] = 'declined'
             flash('Заказ отклонен.', 'success')
-            
     return redirect(url_for('admin', tab='shop'))
 
 @app.route('/admin/process_role_request/<int:req_idx>', methods=['POST'])
@@ -666,7 +704,6 @@ def admin_process_role_request(req_idx):
     if session.get('role') != 'admin': return redirect(url_for('login'))
     action = request.form.get('action')
     req = DB['role_requests'][req_idx]
-    
     if action == 'approve':
         user_name = req['user']
         price = req['price']
@@ -678,7 +715,6 @@ def admin_process_role_request(req_idx):
             flash(f'Роль {req["item_name"]} выдана {user_name}!', 'success')
         else:
             flash('У игрока уже не хватает коинов!', 'error')
-            
     DB['role_requests'].pop(req_idx)
     return redirect(url_for('admin', tab='shop'))
 
@@ -747,7 +783,7 @@ def admin_delete_user(name):
         DB['responses'] = [r for r in DB['responses'] if r['user'] != name]
         DB['role_requests'] = [r for r in DB['role_requests'] if r['user'] != name]
         DB['custom_requests'] = [r for r in DB['custom_requests'] if r['user'] != name]
-        flash('Пользователь удален.', 'success')
+        flash('Пользователь и все его данные удалены.', 'success')
     return redirect(url_for('admin', tab='users'))
 
 if __name__ == '__main__':
